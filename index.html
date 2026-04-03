@@ -240,48 +240,10 @@ input:focus, textarea:focus { border-color: var(--clay); }
     </div>
   </div>
 
-  <!-- 3: Credentials (Cloudinary + Instagram only — no Anthropic key needed) -->
-  <div class="card">
-    <div class="section-label">Instagram + Cloudinary</div>
-
-    <button class="cred-toggle" onclick="toggleCreds()">
-      <span id="credArrow">▸</span>
-      <span id="credLabel">API credentials</span>
-      <span class="saved-badge" id="savedBadge" style="display:none">✓ Saved</span>
-    </button>
-
-    <div class="cred-body" id="credBody">
-      <div class="field" style="margin:0">
-        <label>Cloudinary Cloud Name</label>
-        <input type="text" id="cloudName" placeholder="e.g. myreadingnook">
-        <p class="hint">From your <a href="https://cloudinary.com/console" target="_blank">Cloudinary dashboard</a> → top left.</p>
-      </div>
-      <div class="field" style="margin:0">
-        <label>Cloudinary Upload Preset <span class="opt">(unsigned)</span></label>
-        <input type="text" id="uploadPreset" placeholder="e.g. saturday_reads">
-        <p class="hint">Settings → Upload → Add upload preset → set to <strong>Unsigned</strong>.</p>
-      </div>
-      <div class="field" style="margin:0">
-        <label>Instagram Access Token</label>
-        <input type="password" id="igToken" placeholder="Long-lived token from Meta for Developers">
-        <p class="hint">
-          <a href="https://developers.facebook.com/docs/instagram-api/getting-started" target="_blank">Meta for Developers</a> →
-          your app → Instagram Basic Display or Graph API. Requires a <strong>Business / Creator</strong> account linked to a Facebook Page.
-        </p>
-      </div>
-      <div class="field" style="margin:0">
-        <label>Instagram Business Account ID</label>
-        <input type="text" id="igAccountId" placeholder="e.g. 17841400008460056">
-        <p class="hint">Call <code>GET /me/accounts</code> after getting your token, or find it in Facebook Page → Settings → Instagram.</p>
-      </div>
-      <button class="btn-act" onclick="saveCreds()" style="flex:none;width:auto;padding:10px 20px">Save credentials</button>
-    </div>
-  </div>
-
   <!-- Generate -->
   <button class="btn-generate" id="genBtn" onclick="run()">
     <span class="spin" id="genSpin"></span>
-    <span id="genLabel">Generate caption &amp; post</span>
+    <span id="genLabel">Generate caption</span>
   </button>
 
   <!-- Progress -->
@@ -314,7 +276,7 @@ input:focus, textarea:focus { border-color: var(--clay); }
 // After deploying your Vercel backend, replace this URL with your actual one.
 // e.g. "https://saturday-reads-api.vercel.app"
 // ─────────────────────────────────────────────────────────────────────────────
-const PROXY_URL = 'https://saturday-reads-backend.vercel.app';
+const PROXY_URL = 'https://saturday-reads-api.vercel.app';
 
 // ── State ──────────────────────────────────────────────────────────────────
 let photos = [];
@@ -322,8 +284,6 @@ let caption = '';
 
 // ── Init ───────────────────────────────────────────────────────────────────
 document.getElementById('sessionDate').valueAsDate = new Date();
-loadCreds();
-checkSavedBadge();
 
 // ── Photo handling ─────────────────────────────────────────────────────────
 const dropZone = document.getElementById('dropZone');
@@ -369,52 +329,6 @@ function getBooks() {
   return [...document.querySelectorAll('.book-inp')].map(i => i.value.trim()).filter(Boolean);
 }
 
-// ── Credentials ────────────────────────────────────────────────────────────
-function toggleCreds() {
-  const body = document.getElementById('credBody');
-  body.classList.toggle('open');
-  document.getElementById('credArrow').textContent = body.classList.contains('open') ? '▾' : '▸';
-}
-
-function saveCreds() {
-  const c = {
-    cloudName:     document.getElementById('cloudName').value.trim(),
-    uploadPreset:  document.getElementById('uploadPreset').value.trim(),
-    igToken:       document.getElementById('igToken').value.trim(),
-    igAccountId:   document.getElementById('igAccountId').value.trim(),
-  };
-  localStorage.setItem('sr_creds', JSON.stringify(c));
-  checkSavedBadge();
-  showStatus('Credentials saved to your browser.', 'ok');
-}
-
-function loadCreds() {
-  try {
-    const c = JSON.parse(localStorage.getItem('sr_creds') || '{}');
-    if (c.cloudName)    document.getElementById('cloudName').value    = c.cloudName;
-    if (c.uploadPreset) document.getElementById('uploadPreset').value = c.uploadPreset;
-    if (c.igToken)      document.getElementById('igToken').value      = c.igToken;
-    if (c.igAccountId)  document.getElementById('igAccountId').value  = c.igAccountId;
-  } catch(e) {}
-}
-
-function getCreds() {
-  return {
-    cloudName:    document.getElementById('cloudName').value.trim(),
-    uploadPreset: document.getElementById('uploadPreset').value.trim(),
-    igToken:      document.getElementById('igToken').value.trim(),
-    igAccountId:  document.getElementById('igAccountId').value.trim(),
-  };
-}
-
-function checkSavedBadge() {
-  try {
-    const c = JSON.parse(localStorage.getItem('sr_creds') || '{}');
-    const ok = c.cloudName && c.uploadPreset && c.igToken && c.igAccountId;
-    document.getElementById('savedBadge').style.display = ok ? 'inline-flex' : 'none';
-    document.getElementById('credLabel').textContent = ok ? 'API credentials' : 'API credentials — required';
-  } catch(e) {}
-}
 
 // ── Steps indicator ────────────────────────────────────────────────────────
 function updateSteps(active) {
@@ -452,7 +366,7 @@ function hideStatus() {
 function setBusy(busy) {
   document.getElementById('genBtn').disabled = busy;
   document.getElementById('genSpin').style.display = busy ? 'block' : 'none';
-  document.getElementById('genLabel').textContent = busy ? 'Working…' : 'Generate caption & post';
+  document.getElementById('genLabel').textContent = busy ? 'Working…' : 'Generate caption';
 }
 
 // ── File → base64 ──────────────────────────────────────────────────────────
@@ -473,16 +387,30 @@ function fmtDate(s) {
   });
 }
 
-// ── Upload one photo to Cloudinary ─────────────────────────────────────────
-async function uploadToCloudinary(file, cloudName, preset) {
+// ── Upload one photo to Cloudinary (via backend-signed request) ────────────
+async function uploadToCloudinary(file) {
+  // Step 1: Get a signed upload token from the backend (credentials stay server-side)
+  const signRes = await fetch(`${PROXY_URL}/api/cloudinary-sign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+  });
+  if (!signRes.ok) throw new Error('Could not get upload credentials from server');
+  const { signature, timestamp, cloudName, apiKey } = await signRes.json();
+
+  // Step 2: Upload the file directly to Cloudinary (bypasses Vercel size limits)
   const fd = new FormData();
   fd.append('file', file);
-  fd.append('upload_preset', preset);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+  fd.append('api_key', apiKey);
+  fd.append('timestamp', timestamp);
+  fd.append('signature', signature);
+
+  const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
     method: 'POST', body: fd
   });
-  if (!res.ok) throw new Error(`Cloudinary error ${res.status}`);
-  const data = await res.json();
+  if (!uploadRes.ok) throw new Error(`Image upload failed (${uploadRes.status})`);
+  const data = await uploadRes.json();
+  if (data.error) throw new Error(data.error.message);
   return data.secure_url;
 }
 
@@ -492,104 +420,61 @@ async function generateCaption(activePhotos, books, date, note) {
     throw new Error('Please set PROXY_URL in index.html to your deployed Vercel URL.');
   }
 
-  const contentParts = [];
-
+  // Convert images to base64
+  const images = [];
   for (const p of activePhotos.slice(0, 5)) {
     const b64 = await toBase64(p.file);
-    contentParts.push({ type: 'image', source: { type: 'base64', media_type: p.file.type || 'image/jpeg', data: b64 } });
+    images.push(b64);
   }
 
-  const prompt = `You are the warm, literary voice of "Saturday Reads" — a small community that gathers every Saturday to read silently together. Write an Instagram caption for today's session.
-
-Session details:
-- Date: ${fmtDate(date)}
-- Books being read today: ${books.length ? books.join(', ') : 'various titles'}
-${note ? `- Note from the curator: ${note}` : ''}
-
-${activePhotos.length ? "You can see photos from the session above. Weave in what you observe — the light, the mood, the books visible — naturally, without over-describing." : ''}
-
-Caption rules:
-- 3–5 warm, unhurried sentences. First-person plural ("we", "our").
-- Reads like a letter to a friend, not a brand post.
-- End with a line break then 5–7 relevant hashtags.
-- One or two subtle emojis at most — only if they feel completely natural.
-- Do not start with "Another" or "Saturdays are for".
-
-Write only the caption. No preamble.`;
-
-  contentParts.push({ type: 'text', text: prompt });
-
-  // ← Calls YOUR proxy, not Anthropic directly. No API key in the browser.
-  const res = await fetch(`${PROXY_URL}/api/claude`, {
+  // Send to backend for caption generation
+  const res = await fetch(`${PROXY_URL}/api/generate-caption`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: contentParts }]
+      images: images,
+      context: {
+        books: books,
+        date: fmtDate(date),
+        notes: note
+      }
     })
   });
 
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-  return data.content.map(b => b.type === 'text' ? b.text : '').join('').trim();
+  if (data.error) throw new Error(data.error || JSON.stringify(data));
+  return data.caption.trim();
 }
 
-// ── Post to Instagram via Graph API ───────────────────────────────────────
-async function publishToInstagram(imageUrls, caption, token, accountId) {
-  if (imageUrls.length === 1) {
-    const createRes = await fetch(
-      `https://graph.facebook.com/v19.0/${accountId}/media?` +
-      new URLSearchParams({ image_url: imageUrls[0], caption, access_token: token }),
-      { method: 'POST' }
-    );
-    const createData = await createRes.json();
-    if (createData.error) throw new Error(createData.error.message);
-
-    const publishRes = await fetch(
-      `https://graph.facebook.com/v19.0/${accountId}/media_publish?` +
-      new URLSearchParams({ creation_id: createData.id, access_token: token }),
-      { method: 'POST' }
-    );
-    const publishData = await publishRes.json();
-    if (publishData.error) throw new Error(publishData.error.message);
-    return publishData.id;
-
-  } else {
-    const childIds = [];
-    for (const url of imageUrls) {
-      const r = await fetch(
-        `https://graph.facebook.com/v19.0/${accountId}/media?` +
-        new URLSearchParams({ image_url: url, is_carousel_item: 'true', access_token: token }),
-        { method: 'POST' }
-      );
-      const d = await r.json();
-      if (d.error) throw new Error(d.error.message);
-      childIds.push(d.id);
-    }
-
-    const carouselRes = await fetch(
-      `https://graph.facebook.com/v19.0/${accountId}/media?` +
-      new URLSearchParams({
-        media_type: 'CAROUSEL',
-        children: childIds.join(','),
-        caption,
-        access_token: token
-      }),
-      { method: 'POST' }
-    );
-    const carouselData = await carouselRes.json();
-    if (carouselData.error) throw new Error(carouselData.error.message);
-
-    const pubRes = await fetch(
-      `https://graph.facebook.com/v19.0/${accountId}/media_publish?` +
-      new URLSearchParams({ creation_id: carouselData.id, access_token: token }),
-      { method: 'POST' }
-    );
-    const pubData = await pubRes.json();
-    if (pubData.error) throw new Error(pubData.error.message);
-    return pubData.id;
+// ── Post to Instagram via backend API ───────────────────────────────────────
+async function publishToInstagram(imageUrls, caption) {
+  if (!imageUrls || imageUrls.length === 0) {
+    throw new Error('At least one image URL is required');
   }
+
+  if (PROXY_URL === 'YOUR_VERCEL_URL') {
+    throw new Error('Please set PROXY_URL in index.html to your deployed Vercel URL.');
+  }
+
+  // Use the first image URL for now
+  // (Backend handles single image publishing; carousel support can be added later)
+  const imageUrl = imageUrls[0];
+
+  const res = await fetch(`${PROXY_URL}/api/publish-to-instagram`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      imageUrl: imageUrl,
+      caption: caption
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(data.error || data.message || 'Failed to publish to Instagram');
+  }
+
+  return data.postId;
 }
 
 // ── Main run ───────────────────────────────────────────────────────────────
@@ -598,21 +483,8 @@ async function run() {
   const books = getBooks();
   const date  = document.getElementById('sessionDate').value;
   const note  = document.getElementById('noteIn').value.trim();
-  const creds = getCreds();
 
   if (!activePhotos.length) { showStatus('Please upload at least one photo first.', 'err'); return; }
-  if (!creds.cloudName || !creds.uploadPreset) {
-    document.getElementById('credBody').classList.add('open');
-    document.getElementById('credArrow').textContent = '▾';
-    showStatus('Please enter your Cloudinary cloud name and upload preset.', 'err');
-    return;
-  }
-  if (!creds.igToken || !creds.igAccountId) {
-    document.getElementById('credBody').classList.add('open');
-    document.getElementById('credArrow').textContent = '▾';
-    showStatus('Please enter your Instagram access token and account ID.', 'err');
-    return;
-  }
 
   setBusy(true);
   hideStatus();
@@ -625,34 +497,20 @@ async function run() {
   captionBox.className = 'caption-area loading';
   captionBox.textContent = '';
 
+  // Reset post button so it can be used after regenerate
+  const postBtn = document.getElementById('postBtn');
+  postBtn.textContent = 'Post to Instagram';
+  postBtn.disabled = false;
+
   try {
-    setProgress(10, 'Claude is reading your photos…');
+    setProgress(30, 'Generating caption from your photos…');
     caption = await generateCaption(activePhotos, books, date, note);
     captionBox.textContent = caption;
     captionBox.className = 'caption-area';
     document.getElementById('regenBtn').classList.add('show');
     updateSteps(3);
-
-    setProgress(35, `Uploading ${activePhotos.length} photo${activePhotos.length > 1 ? 's' : ''} to Cloudinary…`);
-    const imageUrls = [];
-    for (let i = 0; i < activePhotos.length; i++) {
-      const url = await uploadToCloudinary(activePhotos[i].file, creds.cloudName, creds.uploadPreset);
-      imageUrls.push(url);
-      setProgress(35 + Math.round(40 * (i+1) / activePhotos.length), `Uploaded ${i+1} of ${activePhotos.length}…`);
-    }
-
-    setProgress(80, 'Publishing to Instagram…');
-    updateSteps(4);
-    const postId = await publishToInstagram(imageUrls, caption, creds.igToken, creds.igAccountId);
-
-    setProgress(100, 'Done!');
+    setProgress(100, 'Caption ready — review and post when ready.');
     setTimeout(hideProgress, 2000);
-    showStatus(
-      `🎉 Posted successfully! Post ID: <code>${postId}</code><br><small>It may take a moment to appear on your profile.</small>`,
-      'ok'
-    );
-    document.getElementById('postBtn').textContent = '✓ Posted!';
-    document.getElementById('postBtn').disabled = true;
 
   } catch(err) {
     captionBox.className = 'caption-area';
@@ -668,14 +526,10 @@ async function run() {
 // ── Post button (standalone) ──────────────────────────────────────────────
 async function postToIG() {
   const activePhotos = photos.filter(Boolean);
-  const creds = getCreds();
   caption = document.getElementById('captionBox').textContent.trim();
 
   if (!activePhotos.length) { showStatus('No photos to post.', 'err'); return; }
-  if (!creds.cloudName || !creds.uploadPreset || !creds.igToken || !creds.igAccountId) {
-    showStatus('Credentials missing — open the API credentials section above.', 'err');
-    return;
-  }
+  if (!caption) { showStatus('Please generate a caption first.', 'err'); return; }
 
   const btn = document.getElementById('postBtn');
   btn.disabled = true; btn.textContent = 'Posting…';
@@ -685,13 +539,13 @@ async function postToIG() {
     setProgress(10, 'Uploading photos…');
     const imageUrls = [];
     for (let i = 0; i < activePhotos.length; i++) {
-      const url = await uploadToCloudinary(activePhotos[i].file, creds.cloudName, creds.uploadPreset);
+      const url = await uploadToCloudinary(activePhotos[i].file);
       imageUrls.push(url);
       setProgress(10 + Math.round(60 * (i+1) / activePhotos.length), `Uploading ${i+1}/${activePhotos.length}…`);
     }
 
     setProgress(80, 'Publishing…');
-    const postId = await publishToInstagram(imageUrls, caption, creds.igToken, creds.igAccountId);
+    const postId = await publishToInstagram(imageUrls, caption);
     setProgress(100, 'Done!');
     setTimeout(hideProgress, 2000);
 
