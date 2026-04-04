@@ -369,13 +369,30 @@ function setBusy(busy) {
   document.getElementById('genLabel').textContent = busy ? 'Working…' : 'Generate caption';
 }
 
-// ── File → base64 ──────────────────────────────────────────────────────────
+// ── File → compressed base64 ───────────────────────────────────────────────
+// Mobile camera photos can be 10–15 MB. Vercel's request body limit is 4.5 MB.
+// We resize to max 1024px and compress to JPEG quality 0.8 using Canvas before
+// converting to base64 — this keeps payloads under 300 KB regardless of source.
 function toBase64(file) {
   return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result.split(',')[1]);
-    r.onerror = rej;
-    r.readAsDataURL(file);
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1024;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+        else                { width  = Math.round(width  * MAX / height); height = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(objectUrl);
+      // Returns base64 without the "data:image/jpeg;base64," prefix
+      res(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+    };
+    img.onerror = rej;
+    img.src = objectUrl;
   });
 }
 
