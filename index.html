@@ -184,9 +184,61 @@ input:focus, textarea:focus { border-color: var(--clay); }
 .regen { display: none; background: none; border: none; font-size: 12px; color: var(--dust); cursor: pointer; font-family: 'DM Sans', sans-serif; text-decoration: underline; padding: 0; margin-top: 7px; }
 .regen:hover { color: var(--clay); }
 .regen.show { display: block; }
+
+/* ── Password overlay ── */
+#pwOverlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--cream);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+#pwOverlay.hidden { display: none; }
+.pw-card {
+  background: var(--warm);
+  border: 1px solid var(--light);
+  border-radius: 20px;
+  padding: 48px 40px;
+  max-width: 380px; width: 100%;
+  text-align: center;
+  box-shadow: 0 4px 32px rgba(46,32,22,.08);
+}
+.pw-logo { font-size: 36px; margin-bottom: 16px; }
+.pw-title { font-family: 'Lora', serif; font-size: 1.7rem; color: var(--bark); margin-bottom: 6px; }
+.pw-subtitle { font-size: 13px; color: var(--dust); margin-bottom: 28px; line-height: 1.6; }
+.pw-card input[type=password] {
+  width: 100%; padding: 12px 14px;
+  border: 1.5px solid var(--light); border-radius: 10px;
+  background: var(--paper); font-size: 20px;
+  font-family: 'DM Sans', sans-serif; color: var(--ink);
+  outline: none; text-align: center; letter-spacing: .2em;
+  transition: border-color .2s; margin-bottom: 12px;
+}
+.pw-card input[type=password]:focus { border-color: var(--clay); }
+.pw-submit {
+  width: 100%; padding: 13px;
+  background: var(--bark); color: var(--cream);
+  border: none; border-radius: 10px;
+  font-family: 'Lora', serif; font-size: 16px; font-style: italic;
+  cursor: pointer; transition: all .2s;
+}
+.pw-submit:hover { background: var(--clay); }
+.pw-err { font-size: 12px; color: #7a2f20; margin-top: 10px; min-height: 18px; }
 </style>
 </head>
 <body>
+
+<!-- ── Password overlay ── -->
+<div id="pwOverlay">
+  <div class="pw-card">
+    <div class="pw-logo">📚</div>
+    <h2 class="pw-title">Saturday Reads</h2>
+    <p class="pw-subtitle">Enter the passphrase to continue</p>
+    <input type="password" id="pwInput" placeholder="••••••••" autocomplete="current-password">
+    <button class="pw-submit" onclick="submitPassword()">Enter the studio →</button>
+    <p class="pw-err" id="pwErr"></p>
+  </div>
+</div>
+
 <div class="wrap">
 
   <header>
@@ -277,6 +329,39 @@ input:focus, textarea:focus { border-color: var(--clay); }
 // e.g. "https://saturday-reads-api.vercel.app"
 // ─────────────────────────────────────────────────────────────────────────────
 const PROXY_URL = 'https://saturday-reads-api.vercel.app';
+
+// ── Password auth ─────────────────────────────────────────────────────────
+function getPassword() {
+  return sessionStorage.getItem('sitePassword') || '';
+}
+
+function showOverlay(errMsg) {
+  document.getElementById('pwOverlay').classList.remove('hidden');
+  document.getElementById('pwInput').value = '';
+  document.getElementById('pwErr').textContent = errMsg || '';
+  setTimeout(() => document.getElementById('pwInput').focus(), 50);
+}
+
+function handle401() {
+  sessionStorage.removeItem('sitePassword');
+  showOverlay('Incorrect passphrase — please try again.');
+}
+
+function submitPassword() {
+  const pw = document.getElementById('pwInput').value.trim();
+  if (!pw) return;
+  sessionStorage.setItem('sitePassword', pw);
+  document.getElementById('pwOverlay').classList.add('hidden');
+}
+
+document.getElementById('pwInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitPassword();
+});
+
+// If password already saved in this tab, skip the overlay immediately
+if (getPassword()) {
+  document.getElementById('pwOverlay').classList.add('hidden');
+}
 
 // ── State ──────────────────────────────────────────────────────────────────
 let photos = [];
@@ -409,9 +494,10 @@ async function uploadToCloudinary(file) {
   // Step 1: Get a signed upload token from the backend (credentials stay server-side)
   const signRes = await fetch(`${PROXY_URL}/api/cloudinary-sign`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-site-password': getPassword() },
     body: JSON.stringify({})
   });
+  if (signRes.status === 401) { handle401(); throw new Error('Authentication required'); }
   if (!signRes.ok) throw new Error('Could not get upload credentials from server');
   const { signature, timestamp, cloudName, apiKey } = await signRes.json();
 
@@ -444,7 +530,7 @@ async function generateCaption(activePhotos, books, date, note) {
   // Send to backend for caption generation
   const res = await fetch(`${PROXY_URL}/api/generate-caption`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-site-password': getPassword() },
     body: JSON.stringify({
       images: images,
       context: {
@@ -455,6 +541,7 @@ async function generateCaption(activePhotos, books, date, note) {
     })
   });
 
+  if (res.status === 401) { handle401(); throw new Error('Authentication required'); }
   const data = await res.json();
   if (data.error) throw new Error(data.error || JSON.stringify(data));
   return data.caption.trim();
@@ -472,13 +559,14 @@ async function publishToInstagram(imageUrls, caption) {
 
   const res = await fetch(`${PROXY_URL}/api/publish-to-instagram`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-site-password': getPassword() },
     body: JSON.stringify({
       imageUrls: imageUrls,
       caption: caption
     })
   });
 
+  if (res.status === 401) { handle401(); throw new Error('Authentication required'); }
   const data = await res.json();
   if (!res.ok || data.error) {
     throw new Error(data.error || data.message || 'Failed to publish to Instagram');
