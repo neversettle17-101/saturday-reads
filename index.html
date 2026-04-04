@@ -347,11 +347,39 @@ function handle401() {
   showOverlay('Incorrect passphrase — please try again.');
 }
 
-function submitPassword() {
+async function submitPassword() {
   const pw = document.getElementById('pwInput').value.trim();
   if (!pw) return;
-  sessionStorage.setItem('sitePassword', pw);
-  document.getElementById('pwOverlay').classList.add('hidden');
+
+  const btn = document.querySelector('.pw-submit');
+  const errEl = document.getElementById('pwErr');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  errEl.textContent = '';
+
+  try {
+    const res = await fetch(`${PROXY_URL}/api/verify-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-site-password': pw }
+    });
+
+    if (res.status === 401) {
+      errEl.textContent = 'Wrong passphrase — please try again.';
+      document.getElementById('pwInput').value = '';
+      document.getElementById('pwInput').focus();
+    } else if (!res.ok) {
+      errEl.textContent = 'Server error — please try again shortly.';
+    } else {
+      // Password correct — store and enter
+      sessionStorage.setItem('sitePassword', pw);
+      document.getElementById('pwOverlay').classList.add('hidden');
+    }
+  } catch (err) {
+    errEl.textContent = 'Could not reach the server — check your connection.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enter the studio →';
+  }
 }
 
 document.getElementById('pwInput').addEventListener('keydown', e => {
