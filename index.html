@@ -378,7 +378,7 @@ function toBase64(file) {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
-      const MAX = 1024;
+      const MAX = 800;
       let { width, height } = img;
       if (width > MAX || height > MAX) {
         if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
@@ -437,12 +437,9 @@ async function generateCaption(activePhotos, books, date, note) {
     throw new Error('Please set PROXY_URL in index.html to your deployed Vercel URL.');
   }
 
-  // Convert images to base64
-  const images = [];
-  for (const p of activePhotos.slice(0, 5)) {
-    const b64 = await toBase64(p.file);
-    images.push(b64);
-  }
+  // Only send the first image — the backend uses images[0] for caption generation.
+  // Sending multiple large base64 strings would hit Vercel's 4.5MB payload limit.
+  const images = [await toBase64(activePhotos[0].file)];
 
   // Send to backend for caption generation
   const res = await fetch(`${PROXY_URL}/api/generate-caption`, {
@@ -473,15 +470,11 @@ async function publishToInstagram(imageUrls, caption) {
     throw new Error('Please set PROXY_URL in index.html to your deployed Vercel URL.');
   }
 
-  // Use the first image URL for now
-  // (Backend handles single image publishing; carousel support can be added later)
-  const imageUrl = imageUrls[0];
-
   const res = await fetch(`${PROXY_URL}/api/publish-to-instagram`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      imageUrl: imageUrl,
+      imageUrls: imageUrls,
       caption: caption
     })
   });
