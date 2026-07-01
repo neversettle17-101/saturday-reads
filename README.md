@@ -1,13 +1,13 @@
-# saturday-reads
+# pune-reads
 
-Frontend for the Saturday Reads Post Studio. A single HTML file — no build step, no framework, no npm. Users upload session photos, generate an AI caption, review it, and publish directly to Instagram.
+Frontend for the Pune Reads Post Studio. A single HTML file — no build step, no framework, no npm. Users upload session photos, generate an AI caption, review it, and publish directly to Instagram.
 
 ---
 
 ## Project structure
 
 ```
-saturday-reads/
+pune-reads/
 └── index.html    # The entire frontend: HTML + CSS + JavaScript in one file
 ```
 
@@ -19,9 +19,9 @@ Everything is self-contained. There are no dependencies to install and nothing t
 
 ### 1. Deploy the backend first
 
-Follow the setup in `saturday-reads-api/README.md` and get your deployed Vercel URL, e.g.:
+Follow the setup in `pune-reads-api/README.md` and get your deployed Vercel URL, e.g.:
 ```
-https://saturday-reads-api.vercel.app
+https://pune-reads-api.vercel.app
 ```
 
 ### 2. Set the backend URL in index.html
@@ -29,7 +29,7 @@ https://saturday-reads-api.vercel.app
 Open `index.html` and find this line near the top of the `<script>` section:
 
 ```js
-const PROXY_URL = 'https://saturday-reads-api.vercel.app';
+const PROXY_URL = 'https://pune-reads-api.vercel.app';
 ```
 
 Replace the value with your own deployed backend URL.
@@ -37,7 +37,7 @@ Replace the value with your own deployed backend URL.
 ### 3. Push to GitHub and enable Pages
 
 ```bash
-git remote add origin https://github.com/<your-username>/saturday-reads.git
+git remote add origin https://github.com/<your-username>/pune-reads.git
 git add index.html
 git commit -m "initial commit"
 git push -u origin main
@@ -47,14 +47,14 @@ Then in your GitHub repo: **Settings → Pages → Source → Deploy from a bran
 
 Your site will be live at:
 ```
-https://<your-username>.github.io/saturday-reads/
+https://<your-username>.github.io/pune-reads/
 ```
 
 Deployments take 1–2 minutes; track progress under the repo's **Actions** tab.
 
 ### 4. Lock down CORS on the backend
 
-In Vercel Dashboard → `saturday-reads-api` → Settings → Environment Variables, set:
+In Vercel Dashboard → `pune-reads-api` → Settings → Environment Variables, set:
 
 ```
 ALLOWED_ORIGIN = https://<your-username>.github.io
