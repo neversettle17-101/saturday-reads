@@ -232,7 +232,7 @@ input:focus, textarea:focus { border-color: var(--clay); }
   <div class="pw-card">
     <div class="pw-logo">📚</div>
     <h2 class="pw-title">Saturday Reads</h2>
-    <p class="pw-subtitle">Enter the passphrase to continue</p>
+    <p class="pw-subtitle">Enter your name and passphrase to continue</p>
     <input type="text" id="nameInput" placeholder="Your name" autocomplete="name">
     <input type="password" id="pwInput" placeholder="••••••••" autocomplete="current-password">
     <button class="pw-submit" onclick="submitPassword()">Enter the studio →</button>
@@ -356,10 +356,19 @@ function handle401() {
 async function submitPassword() {
   const userName = document.getElementById('nameInput').value.trim();
   const pw = document.getElementById('pwInput').value.trim();
-  if (!userName || !pw) return;
+  const errEl = document.getElementById('pwErr');
+  if (!userName) {
+    errEl.textContent = 'Please enter your name to continue.';
+    document.getElementById('nameInput').focus();
+    return;
+  }
+  if (!pw) {
+    errEl.textContent = 'Please enter the passphrase to continue.';
+    document.getElementById('pwInput').focus();
+    return;
+  }
 
   const btn = document.querySelector('.pw-submit');
-  const errEl = document.getElementById('pwErr');
   btn.disabled = true;
   btn.textContent = 'Checking…';
   errEl.textContent = '';
@@ -398,8 +407,8 @@ document.getElementById('nameInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('pwInput').focus();
 });
 
-// If password already saved in this tab, skip the overlay immediately
-if (getPassword()) {
+// If name and password are already saved in this tab, skip the overlay immediately
+if (getUserName() && getPassword()) {
   document.getElementById('pwOverlay').classList.add('hidden');
 }
 
