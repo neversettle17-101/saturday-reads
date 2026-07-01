@@ -233,6 +233,7 @@ input:focus, textarea:focus { border-color: var(--clay); }
     <div class="pw-logo">📚</div>
     <h2 class="pw-title">Saturday Reads</h2>
     <p class="pw-subtitle">Enter the passphrase to continue</p>
+    <input type="text" id="nameInput" placeholder="Your name" autocomplete="name">
     <input type="password" id="pwInput" placeholder="••••••••" autocomplete="current-password">
     <button class="pw-submit" onclick="submitPassword()">Enter the studio →</button>
     <p class="pw-err" id="pwErr"></p>
@@ -335,11 +336,16 @@ function getPassword() {
   return sessionStorage.getItem('sitePassword') || '';
 }
 
+function getUserName() {
+  return sessionStorage.getItem('siteUserName') || '';
+}
+
 function showOverlay(errMsg) {
   document.getElementById('pwOverlay').classList.remove('hidden');
+  document.getElementById('nameInput').value = getUserName();
   document.getElementById('pwInput').value = '';
   document.getElementById('pwErr').textContent = errMsg || '';
-  setTimeout(() => document.getElementById('pwInput').focus(), 50);
+  setTimeout(() => document.getElementById(getUserName() ? 'pwInput' : 'nameInput').focus(), 50);
 }
 
 function handle401() {
@@ -348,8 +354,9 @@ function handle401() {
 }
 
 async function submitPassword() {
+  const userName = document.getElementById('nameInput').value.trim();
   const pw = document.getElementById('pwInput').value.trim();
-  if (!pw) return;
+  if (!userName || !pw) return;
 
   const btn = document.querySelector('.pw-submit');
   const errEl = document.getElementById('pwErr');
@@ -360,7 +367,8 @@ async function submitPassword() {
   try {
     const res = await fetch(`${PROXY_URL}/api/verify-password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-site-password': pw }
+      headers: { 'Content-Type': 'application/json', 'x-site-password': pw },
+      body: JSON.stringify({ name: userName })
     });
 
     if (res.status === 401) {
@@ -371,6 +379,7 @@ async function submitPassword() {
       errEl.textContent = 'Server error — please try again shortly.';
     } else {
       // Password correct — store and enter
+      sessionStorage.setItem('siteUserName', userName);
       sessionStorage.setItem('sitePassword', pw);
       document.getElementById('pwOverlay').classList.add('hidden');
     }
@@ -384,6 +393,9 @@ async function submitPassword() {
 
 document.getElementById('pwInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') submitPassword();
+});
+document.getElementById('nameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('pwInput').focus();
 });
 
 // If password already saved in this tab, skip the overlay immediately
