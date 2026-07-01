@@ -114,6 +114,18 @@ input:focus, textarea:focus { border-color: var(--clay); }
 .btn-add-book { background: none; border: 1.5px dashed var(--light); border-radius: 8px; padding: 9px; font-size: 13px; color: var(--dust); cursor: pointer; font-family: 'DM Sans', sans-serif; width: 100%; transition: all .2s; margin-top: 4px; }
 .btn-add-book:hover { border-color: var(--clay); color: var(--clay); }
 
+/* ── Caption settings ── */
+.caption-toggle {
+  display: flex; align-items: flex-start; gap: 12px;
+  cursor: pointer;
+}
+.caption-toggle input {
+  width: 18px; height: 18px; margin-top: 2px;
+  accent-color: var(--sage); flex-shrink: 0;
+}
+.toggle-title { display: block; font-size: 14px; font-weight: 500; color: var(--bark); }
+.toggle-copy { display: block; font-size: 12px; color: var(--dust); line-height: 1.55; margin-top: 3px; }
+
 /* ── Credentials panel ── */
 .cred-toggle { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--dust); cursor: pointer; display: flex; align-items: center; gap: 7px; padding: 0; margin-bottom: 14px; transition: color .2s; }
 .cred-toggle:hover { color: var(--clay); }
@@ -152,6 +164,7 @@ input:focus, textarea:focus { border-color: var(--clay); }
   border: 1.5px solid var(--light); transition: border-color .3s;
   outline: none;
 }
+.caption-area.empty { color: var(--dust); font-style: italic; }
 .caption-area[contenteditable=true] { border-color: var(--clay); }
 .caption-area.loading { border-color: var(--clay); animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.7} }
@@ -292,6 +305,18 @@ input:focus, textarea:focus { border-color: var(--clay); }
     </div>
   </div>
 
+  <!-- Caption settings -->
+  <div class="card">
+    <div class="section-label">Caption Generation</div>
+    <label class="caption-toggle">
+      <input type="checkbox" id="captionGenerationToggle" checked onchange="syncCaptionGenerationUi()">
+      <span>
+        <span class="toggle-title">Generate an AI caption before posting</span>
+        <span class="toggle-copy">Turn this off to upload to Instagram with no caption. You can still type a caption before posting.</span>
+      </span>
+    </label>
+  </div>
+
   <!-- Generate -->
   <button class="btn-generate" id="genBtn" onclick="run()">
     <span class="spin" id="genSpin"></span>
@@ -394,6 +419,7 @@ if (getPassword()) {
 // ── State ──────────────────────────────────────────────────────────────────
 let photos = [];
 let caption = '';
+const emptyCaptionText = 'No caption will be added. Click Edit if you want to type one.';
 
 // ── Init ───────────────────────────────────────────────────────────────────
 document.getElementById('sessionDate').valueAsDate = new Date();
@@ -479,7 +505,21 @@ function hideStatus() {
 function setBusy(busy) {
   document.getElementById('genBtn').disabled = busy;
   document.getElementById('genSpin').style.display = busy ? 'block' : 'none';
-  document.getElementById('genLabel').textContent = busy ? 'Working…' : 'Generate caption';
+  if (busy) {
+    document.getElementById('genLabel').textContent = 'Working…';
+  } else {
+    syncCaptionGenerationUi();
+  }
+}
+
+function shouldGenerateCaption() {
+  return document.getElementById('captionGenerationToggle').checked;
+}
+
+function syncCaptionGenerationUi() {
+  const enabled = shouldGenerateCaption();
+  document.getElementById('genLabel').textContent = enabled ? 'Generate caption' : 'Prepare post';
+  document.getElementById('regenBtn').textContent = enabled ? '↺ Regenerate caption' : 'Prepare without caption';
 }
 
 // ── File → compressed base64 ───────────────────────────────────────────────
@@ -585,13 +625,14 @@ async function publishToInstagram(imageUrls, caption) {
     throw new Error('Please set PROXY_URL in index.html to your deployed Vercel URL.');
   }
 
+  const payload = { imageUrls: imageUrls };
+  const cleanCaption = typeof caption === 'string' ? caption.trim() : '';
+  if (cleanCaption) payload.caption = cleanCaption;
+
   const res = await fetch(`${PROXY_URL}/api/publish-to-instagram`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-site-password': getPassword() },
-    body: JSON.stringify({
-      imageUrls: imageUrls,
-      caption: caption
-    })
+    body: JSON.stringify(payload)
   });
 
   if (res.status === 401) { handle401(); throw new Error('Authentication required'); }
@@ -612,6 +653,7 @@ async function run() {
 
   if (!activePhotos.length) { showStatus('Please upload at least one photo first.', 'err'); return; }
 
+  const generateEnabled = shouldGenerateCaption();
   setBusy(true);
   hideStatus();
   document.getElementById('regenBtn').classList.remove('show');
@@ -629,13 +671,20 @@ async function run() {
   postBtn.disabled = false;
 
   try {
-    setProgress(30, 'Generating caption from your photos…');
-    caption = await generateCaption(activePhotos, books, date, note);
-    captionBox.textContent = caption;
-    captionBox.className = 'caption-area';
+    if (generateEnabled) {
+      setProgress(30, 'Generating caption from your photos…');
+      caption = await generateCaption(activePhotos, books, date, note);
+      captionBox.textContent = caption;
+      captionBox.className = 'caption-area';
+      setProgress(100, 'Caption ready — review and post when ready.');
+    } else {
+      caption = '';
+      captionBox.textContent = emptyCaptionText;
+      captionBox.className = 'caption-area empty';
+      setProgress(100, 'Post ready — upload to Instagram when ready.');
+    }
     document.getElementById('regenBtn').classList.add('show');
     updateSteps(3);
-    setProgress(100, 'Caption ready — review and post when ready.');
     setTimeout(hideProgress, 2000);
 
   } catch(err) {
@@ -652,10 +701,10 @@ async function run() {
 // ── Post button (standalone) ──────────────────────────────────────────────
 async function postToIG() {
   const activePhotos = photos.filter(Boolean);
-  caption = document.getElementById('captionBox').textContent.trim();
+  const captionBox = document.getElementById('captionBox');
+  caption = captionBox.classList.contains('empty') ? '' : captionBox.textContent.trim();
 
   if (!activePhotos.length) { showStatus('No photos to post.', 'err'); return; }
-  if (!caption) { showStatus('Please generate a caption first.', 'err'); return; }
 
   const btn = document.getElementById('postBtn');
   btn.disabled = true; btn.textContent = 'Posting…';
@@ -687,7 +736,8 @@ async function postToIG() {
 
 // ── Copy & edit ───────────────────────────────────────────────────────────
 function copyCaption() {
-  const text = document.getElementById('captionBox').textContent;
+  const box = document.getElementById('captionBox');
+  const text = box.classList.contains('empty') ? '' : box.textContent;
   navigator.clipboard.writeText(text).then(() => showStatus('Caption copied to clipboard!', 'ok'));
 }
 
@@ -695,9 +745,17 @@ function toggleEdit() {
   const box = document.getElementById('captionBox');
   const isEditing = box.contentEditable === 'true';
   box.contentEditable = isEditing ? 'false' : 'true';
-  if (!isEditing) { box.focus(); showStatus('Caption is now editable — click anywhere else when done.', 'info'); }
+  if (!isEditing) {
+    if (box.classList.contains('empty')) {
+      box.classList.remove('empty');
+      box.textContent = '';
+    }
+    box.focus(); showStatus('Caption is now editable — click anywhere else when done.', 'info');
+  }
   else hideStatus();
 }
+
+syncCaptionGenerationUi();
 </script>
 </body>
 </html>
