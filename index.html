@@ -205,14 +205,17 @@ input:focus, textarea:focus { border-color: var(--clay); }
 .pw-logo { font-size: 36px; margin-bottom: 16px; }
 .pw-title { font-family: 'Lora', serif; font-size: 1.7rem; color: var(--bark); margin-bottom: 6px; }
 .pw-subtitle { font-size: 13px; color: var(--dust); margin-bottom: 28px; line-height: 1.6; }
+.pw-card input[type=text],
 .pw-card input[type=password] {
   width: 100%; padding: 12px 14px;
   border: 1.5px solid var(--light); border-radius: 10px;
   background: var(--paper); font-size: 20px;
   font-family: 'DM Sans', sans-serif; color: var(--ink);
-  outline: none; text-align: center; letter-spacing: .2em;
+  outline: none; text-align: center;
   transition: border-color .2s; margin-bottom: 12px;
 }
+.pw-card input[type=password] { letter-spacing: .2em; }
+.pw-card input[type=text]:focus,
 .pw-card input[type=password]:focus { border-color: var(--clay); }
 .pw-submit {
   width: 100%; padding: 13px;
@@ -232,7 +235,8 @@ input:focus, textarea:focus { border-color: var(--clay); }
   <div class="pw-card">
     <div class="pw-logo">📚</div>
     <h2 class="pw-title">Saturday Reads</h2>
-    <p class="pw-subtitle">Enter the passphrase to continue</p>
+    <p class="pw-subtitle">Enter your name and passphrase to continue</p>
+    <input type="text" id="nameInput" placeholder="Your name" autocomplete="name">
     <input type="password" id="pwInput" placeholder="••••••••" autocomplete="current-password">
     <button class="pw-submit" onclick="submitPassword()">Enter the studio →</button>
     <p class="pw-err" id="pwErr"></p>
@@ -335,11 +339,16 @@ function getPassword() {
   return sessionStorage.getItem('sitePassword') || '';
 }
 
+function getUserName() {
+  return sessionStorage.getItem('siteUserName') || '';
+}
+
 function showOverlay(errMsg) {
   document.getElementById('pwOverlay').classList.remove('hidden');
+  document.getElementById('nameInput').value = getUserName();
   document.getElementById('pwInput').value = '';
   document.getElementById('pwErr').textContent = errMsg || '';
-  setTimeout(() => document.getElementById('pwInput').focus(), 50);
+  setTimeout(() => document.getElementById('nameInput').focus(), 50);
 }
 
 function handle401() {
@@ -348,6 +357,7 @@ function handle401() {
 }
 
 async function submitPassword() {
+  const name = document.getElementById('nameInput').value;
   const pw = document.getElementById('pwInput').value.trim();
   if (!pw) return;
 
@@ -360,7 +370,8 @@ async function submitPassword() {
   try {
     const res = await fetch(`${PROXY_URL}/api/verify-password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-site-password': pw }
+      headers: { 'Content-Type': 'application/json', 'x-site-password': pw },
+      body: JSON.stringify({ name })
     });
 
     if (res.status === 401) {
@@ -372,6 +383,7 @@ async function submitPassword() {
     } else {
       // Password correct — store and enter
       sessionStorage.setItem('sitePassword', pw);
+      sessionStorage.setItem('siteUserName', name);
       document.getElementById('pwOverlay').classList.add('hidden');
     }
   } catch (err) {
@@ -383,6 +395,9 @@ async function submitPassword() {
 }
 
 document.getElementById('pwInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitPassword();
+});
+document.getElementById('nameInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') submitPassword();
 });
 
